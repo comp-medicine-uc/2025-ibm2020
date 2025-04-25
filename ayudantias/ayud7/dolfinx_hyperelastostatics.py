@@ -10,21 +10,20 @@ import ufl
 from mpi4py import MPI
 from dolfinx import fem, mesh, plot
 
-# Geometry and function space
+# This tutorial corresponds to the hyperelasticity tutorial by jsdokken. 
+# https://jsdokken.com/dolfinx-tutorial/chapter2/hyperelasticity.html
 
+# Geometry and function space
 L = 20.0
 domain = mesh.create_box(MPI.COMM_WORLD, [[0.0, 0.0, 0.0], [L, 1, 1]], [10,3,3], mesh.CellType.hexahedron)
 V = fem.functionspace(domain, ("Lagrange", 2, (domain.geometry.dim, )))
-Vdeg1 = fem.functionspace(domain, ("Lagrange", 1, (domain.geometry.dim, )))
+Vdeg1 = fem.functionspace(domain, ("Lagrange", 1, (domain.geometry.dim, ))) # Necessary for output writing
 
 # Boundary conditions
 def left(x):
     return np.isclose(x[0], 0)
-
-
 def right(x):
     return np.isclose(x[0], L)
-
 
 fdim = domain.topology.dim - 1
 left_facets = mesh.locate_entities_boundary(domain, fdim, left)
@@ -36,13 +35,14 @@ marked_values = np.hstack([np.full_like(left_facets, 1), np.full_like(right_face
 sorted_facets = np.argsort(marked_facets)
 facet_tag = mesh.meshtags(domain, fdim, marked_facets[sorted_facets], marked_values[sorted_facets])
 
+# Dirichlet boundary condition creation
 u_bc = np.array((0,) * domain.geometry.dim, dtype=default_scalar_type)
-
 left_dofs = fem.locate_dofs_topological(V, facet_tag.dim, facet_tag.find(1))
 bcs = [fem.dirichletbc(u_bc, left_dofs, V)]
 
-B = fem.Constant(domain, default_scalar_type((0, 0, 0)))
-T = fem.Constant(domain, default_scalar_type((0, 0, 0)))
+# Constant vectors
+B = fem.Constant(domain, default_scalar_type((0, 0, 0))) # fixed
+T = fem.Constant(domain, default_scalar_type((0, 0, 0))) # varying
 
 # Functions
 v = ufl.TestFunction(V)
@@ -74,7 +74,7 @@ lmbda = fem.Constant(domain, E * nu / ((1 + nu) * (1 - 2 * nu)))
 # Stored strain energy density (compressible neo-Hookean model)
 psi = (mu / 2) * (Ic - 3) - mu * ufl.ln(J) + (lmbda / 2) * (ufl.ln(J))**2
 # Stress
-# Hyper-elasticity
+# Coleman-Noll theorem: P = dW/dF
 P = ufl.diff(psi, F)
 
 metadata = {"quadrature_degree": 4}
@@ -100,6 +100,7 @@ opts[f"{option_prefix}ksp_rtol"] = 1.0e-8
 # opts[f"{option_prefix}pc_type"] = "ilu"
 ksp.setFromOptions()
 
+# Solve for incremental values of T[2]
 log.set_log_level(log.LogLevel.INFO)
 tval0 = -1.5
 for n in range(1, 3):

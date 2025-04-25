@@ -6,6 +6,9 @@ from mpi4py import MPI
 import ufl
 import numpy as np
 
+# This tutorial corresponds to the linear elasticity tutorial by jsdokken. 
+# https://jsdokken.com/dolfinx-tutorial/chapter2/linearelasticity.html
+
 # Parameters
 L = 1
 W = 0.2
